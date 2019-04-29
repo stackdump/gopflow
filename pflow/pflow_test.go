@@ -3,7 +3,7 @@ package pflow_test
 import (
 	"testing"
 
-	. "github.com/stackdump/gopflow/pflow"
+	. "github.com/stackdump/gopflow/ptnet"
 )
 
 func TestLoadFromFile(t *testing.T) {
