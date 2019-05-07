@@ -85,6 +85,7 @@ func LoadFile(path string) (*PFlow, error) {
 	_ = p.Unmarshal(data)
 	return p, nil
 }
+
 func (p *PFlow) Document() document {
 	return p.document
 }

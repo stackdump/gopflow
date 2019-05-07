@@ -1,22 +1,16 @@
 package pflow_test
 
 import (
-	"testing"
+"testing"
 
-	. "github.com/stackdump/gopflow/ptnet"
+. "github.com/stackdump/gopflow/pflow"
 )
 
-func TestLoadFromFile(t *testing.T) {
-	p, err := LoadFile("../examples/octoe.pflow")
+func TestCounterMachine(t *testing.T) {
+	_, err := LoadFile("../examples/octoe.pflow")
+
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("failed to unmarshal")
 	}
-	if len(p.Document().SubNets) != 1 {
-		t.Fatal("failed to load xml file")
-	}
-	_, err = p.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	//println(string(data))
 }
+

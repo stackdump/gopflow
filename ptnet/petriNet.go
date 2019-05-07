@@ -1,7 +1,7 @@
 package ptnet
 
 import (
-	stateMachine "github.com/stackdump/gopetri/statemachine"
+	stateMachine "github.com/stackdump/goflow/statemachine"
 	pFlow "github.com/stackdump/gopflow/pflow"
 )
 
@@ -39,7 +39,7 @@ func GetInitialValue(m pFlow.InitialMarking) uint64 {
 	}
 	return uint64(val)
 }
- */
+*/
 
 func (p PetriNet) GetEmptyVector() []int64 {
 	var emptyVector []int64
@@ -85,6 +85,11 @@ func (p PetriNet) StateMachine() stateMachine.StateMachine {
 		Transitions: p.Transitions,
 		State:       stateMachine.StateVector{},
 	}
+}
+
+func LoadFile(pflowPath string) (*pFlow.PFlow, error) {
+	// FIXME: return PetriNet instead of PFlow
+	return pFlow.LoadFile(pflowPath)
 }
 
 /*
@@ -141,4 +146,4 @@ func LoadPnmlFromFile(path string) (PetriNet, stateMachine.StateMachine) {
 
 	return petriNet, petriNet.StateMachine()
 }
- */
+*/

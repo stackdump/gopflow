@@ -7,7 +7,10 @@ import (
 )
 
 func TestCounterMachine(t *testing.T) {
-	p, err := LoadFile("../examples/octoe.pflow")
-	_ = err
-	_ = p
+	_, err := LoadFile("../examples/octoe.pflow")
+
+	if err != nil {
+		t.Fatal("failed to unmarshal")
+	}
 }
+

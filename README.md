@@ -1,4 +1,4 @@
-# gopetri
+# gopflow
 
 go library for PetriNets encoded using pflow schema.
 
