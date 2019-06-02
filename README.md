@@ -1,15 +1,20 @@
 # gopflow
 
-go library for PetriNets encoded using pflow schema.
-
-Goal is to be compatible with http://www.pneditor.org/
+Go library to use PetriNets encoded using pflow schema to construct state-machines.
 
 # Status
 
-Work in progress
+[![Build Status](https://travis-ci.org/stackdump/gopflow.svg?branch=master)](https://travis-ci.org/stackdump/gopflow)
+
+Tested in Isolation - working to test within other codebases.
 
 # Motivation
 
-Pflow seems to be a easier to work with compared with [PNML](http://www.pnml.org/)
+Petri-nets are well explored data structures that have mathematically verifiable properties.
 
-Support for Sub-nets and Roles in pflow seem to extend elementary petri-nets just enough to be useful.
+States and transitions are computed as a [Vector addition System with State](https://en.wikipedia.org/wiki/Vector_addition_system)
+This vector format makes machine learning analysis of event logs very trivial.
+
+This library is compatible with `.pflow` files produced with a [visual editor](http://www.pneditor.org/)
+Once a user is familiar with the basic semantics of a Petri-Net, new process flows can be developed rapidly.
+
