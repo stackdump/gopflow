@@ -47,11 +47,11 @@ func (s *StateMachine) Transform(state []uint64, action string, multiplier uint6
 		vectorOut = append(vectorOut, val)
 
 		if err == nil && val < 0 {
-			err = errors.New(fmt.Sprintf("underflow offset: %v => %v ", offset, val))
+			err = errors.New("underflow")
 		}
 
 		if err == nil && s.Capacity[offset] != 0 && val > int64(s.Capacity[offset]) {
-			err = errors.New(fmt.Sprintf("overflow offset: %v => %v ", offset, val))
+			err = errors.New("overflow")
 		}
 	}
 
