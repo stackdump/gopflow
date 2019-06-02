@@ -1,9 +1,9 @@
 package pflow_test
 
 import (
-"testing"
+	"testing"
 
-. "github.com/stackdump/gopflow/pflow"
+	. "github.com/stackdump/gopflow/pflow"
 )
 
 func TestCounterMachine(t *testing.T) {
@@ -13,4 +13,3 @@ func TestCounterMachine(t *testing.T) {
 		t.Fatal("failed to unmarshal")
 	}
 }
-

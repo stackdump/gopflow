@@ -1,22 +1,19 @@
 package ptnet_test
 
 import (
-"testing"
+	"testing"
 
-. "github.com/stackdump/gopflow/ptnet"
+	. "github.com/stackdump/gopflow/ptnet"
 )
 
 func TestLoadFromFile(t *testing.T) {
 	p, err := LoadFile("../examples/octoe.pflow")
 	if err != nil {
 		t.Fatal(err)
+		return
 	}
-	if len(p.Document().SubNets) != 1 {
-		t.Fatal("failed to load xml file")
+
+	if p != nil {
+		println(p.String())
 	}
-	_, err = p.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	//println(string(data))
 }

@@ -1,8 +1,10 @@
 package ptnet
 
 import (
-	stateMachine "github.com/stackdump/goflow/statemachine"
+	"encoding/json"
+	"fmt"
 	pFlow "github.com/stackdump/gopflow/pflow"
+	stateMachine "github.com/stackdump/gopflow/statemachine"
 )
 
 type Place struct {
@@ -23,31 +25,6 @@ func (p PetriNet) getOffset(placeName string) (int, bool) {
 		}
 	}
 	return -1, false
-}
-
-func getWeight(a pFlow.Arc) int64 {
-	return int64(a.Multiplicity)
-}
-
-/* FIXME
-func GetInitialValue(m pFlow.InitialMarking) uint64 {
-	tokenVals := strings.Split(m.TokenValueCsv, ",")
-	val, err := strconv.ParseInt(tokenVals[1], 10, 64)
-
-	if err != nil || tokenVals[0] != "Default" {
-		panic("Error Parsing InitialMarking")
-	}
-	return uint64(val)
-}
-*/
-
-func (p PetriNet) GetEmptyVector() []int64 {
-	var emptyVector []int64
-
-	for x := 0; x < len(p.Places); x++ {
-		emptyVector = append(emptyVector, int64(0))
-	}
-	return emptyVector
 }
 
 func (p PetriNet) GetEmptyState() []uint64 {
@@ -78,8 +55,8 @@ func (p PetriNet) GetCapacityVector() stateMachine.StateVector {
 	return stateMachine.StateVector(capacity[:])
 }
 
-func (p PetriNet) StateMachine() stateMachine.StateMachine {
-	return stateMachine.StateMachine{
+func (p PetriNet) StateMachine() *stateMachine.StateMachine {
+	return &stateMachine.StateMachine{
 		Initial:     p.GetInitialState(),
 		Capacity:    p.GetCapacityVector(),
 		Transitions: p.Transitions,
@@ -87,63 +64,177 @@ func (p PetriNet) StateMachine() stateMachine.StateMachine {
 	}
 }
 
-func LoadFile(pflowPath string) (*pFlow.PFlow, error) {
-	// FIXME: return PetriNet instead of PFlow
-	return pFlow.LoadFile(pflowPath)
+func (p PetriNet) String() string {
+	s, err := json.MarshalIndent(p, "", "    ")
+
+	if err != nil {
+		panic("failed to serialize")
+	}
+	return string(s)
 }
 
-/*
-func LoadPnmlFromFile(path string) (PetriNet, stateMachine.StateMachine) {
-	pFlowDef, _ := pFlow.LoadFile(path)
+type pflowLoader struct {
+	f                  *pFlow.PFlow
+	placeElements      []pFlow.Place
+	transitionElements []pFlow.Transition
+	refPlaceElements   []pFlow.ReferencePlace
+	arcElements        []pFlow.Arc
+	placeIdOffset      map[int]int
+	placeIdLabel       map[int]string
+}
 
-	petriNet := PetriNet{
-		map[string]Place{},
-		map[stateMachine.Action]stateMachine.Transition{},
-		pFlowDef,
+func (pfl *pflowLoader) emptyVector() stateMachine.Delta {
+	d := stateMachine.Delta{}
+	for range pfl.placeElements {
+		d = append(d, 0)
+	}
+	return d
+}
+
+func (pfl *pflowLoader) places() map[string]Place {
+	pfl.placeIdOffset = make(map[int]int)
+	pfl.placeIdLabel = make(map[int]string)
+
+	l := make(map[string]Place)
+	for i, p := range pfl.placeElements {
+		l[p.Label] = Place{
+			p.Tokens,
+			i,
+			p.Capacity,
+		}
+		pfl.placeIdOffset[p.Id] = i
+		pfl.placeIdLabel[p.Id] = p.Label
 	}
 
-	if len(pFlowDef.Nets) != 1 {
-		panic("Expect a single petri-net definition per file")
+	for _, rp := range pfl.refPlaceElements {
+		// index connected places
+		pfl.placeIdOffset[rp.Id] = pfl.placeIdOffset[rp.ConnectedPlaceId]
+		pfl.placeIdLabel[rp.Id] = pfl.placeIdLabel[rp.ConnectedPlaceId]
 	}
 
-	net := pFlowDef.Nets[0]
+	return l
+}
 
-	for offset, p := range net.Places {
-		petriNet.Places[p.Id] =
-			Place{
-				Initial:  GetInitialValue(p.InitialMarking),
-				Offset:   offset,
-				Capacity: p.Capacity.Value,
+func (pfl *pflowLoader) getOffset(placeId int) int {
+	o, found := pfl.placeIdOffset[placeId]
+	if !found {
+		panic(fmt.Sprintf("unknownPlace %v", placeId))
+	}
+	return o
+}
+
+func (pfl *pflowLoader) getPlaceLabel(placeId int) string {
+	label, found := pfl.placeIdLabel[placeId]
+	if !found {
+		panic(fmt.Sprintf("unknownPlace %v", placeId))
+	}
+	return label
+}
+
+func (pfl *pflowLoader) isPlace(placeId int) bool {
+	_, found := pfl.placeIdOffset[placeId]
+	return found
+}
+
+func (pfl *pflowLoader) transitions() map[stateMachine.Action]stateMachine.Transition {
+	roleMap := make(map[pFlow.TransitionId]stateMachine.Role)
+
+	for _, r := range pfl.f.Roles {
+		for _, txId := range r.TransitionIds {
+			roleMap[txId] = stateMachine.Role(r.Name)
+		}
+	}
+
+	type txBuilder struct {
+		unit      int64
+		inhibitor bool
+		place     string
+		offset    int
+	}
+
+	txMap := make(map[int][]txBuilder)
+
+	for _, a := range pfl.arcElements {
+		t := txBuilder{inhibitor: a.Type == "inhibitor"}
+
+		if pfl.isPlace(a.SourceId) {
+			t.unit = int64(-1 * a.Multiplicity)
+			t.place = pfl.getPlaceLabel(a.SourceId)
+			t.offset = pfl.getOffset(a.SourceId)
+			txMap[a.DestinationId] = append(txMap[a.DestinationId], t)
+		} else {
+			t.unit = int64(a.Multiplicity)
+			t.place = pfl.getPlaceLabel(a.DestinationId)
+			t.offset = pfl.getOffset(a.DestinationId)
+			txMap[a.SourceId] = append(txMap[a.SourceId], t)
+		}
+	}
+
+	l := make(map[stateMachine.Action]stateMachine.Transition)
+	for _, t := range pfl.transitionElements {
+		delta := pfl.emptyVector()
+		guards := make(map[stateMachine.Condition]stateMachine.Delta, 0)
+
+		for _, txn := range txMap[t.Id] {
+			if txn.inhibitor {
+				g := pfl.emptyVector()
+				g[txn.offset] = txn.unit
+				guards[stateMachine.Condition(txn.place)] = g
+			} else {
+				delta[txn.offset] = txn.unit
 			}
-	}
-
-	for _, txn := range net.Transitions {
-		petriNet.Transitions[stateMachine.Action(txn.Id)] = petriNet.GetEmptyVector()
-	}
-
-	for _, arc := range net.Arcs {
-		var action string
-		var sign int64
-		var offset int
-
-		targetOffset, targetIsPlace := petriNet.getOffset(arc.Target)
-		sourceOffset, sourceIsPlace := petriNet.getOffset(arc.Source)
-
-		if sourceIsPlace {
-			action = arc.Target
-			offset = sourceOffset
-			sign = -1
 		}
-
-		if targetIsPlace {
-			action = arc.Source
-			offset = targetOffset
-			sign = 1
+		action := stateMachine.Action(t.Label)
+		l[action] = stateMachine.Transition{
+			Delta:  delta,
+			Role:   roleMap[pFlow.TransitionId(t.Id)],
+			Guards: guards,
 		}
-
-		petriNet.Transitions[stateMachine.Action(action)][offset] += sign * getWeight(arc)
 	}
 
-	return petriNet, petriNet.StateMachine()
+	return l
 }
-*/
+
+func (pfl *pflowLoader) loadSubnets(sub pFlow.SubNet) {
+	for _, s := range sub.SubNets {
+		pfl.loadSubnets(s)
+	}
+
+	for _, p := range sub.Places {
+		pfl.placeElements = append(pfl.placeElements, p)
+	}
+
+	for _, t := range sub.Transitions {
+		pfl.transitionElements = append(pfl.transitionElements, t)
+	}
+
+	for _, r := range sub.ReferencePlaces {
+		pfl.refPlaceElements = append(pfl.refPlaceElements, r)
+	}
+
+	for _, a := range sub.Arcs {
+		pfl.arcElements = append(pfl.arcElements, a)
+	}
+}
+
+func (pfl *pflowLoader) toNet() (p *PetriNet, err error) {
+	for _, s := range pfl.f.SubNets {
+		pfl.loadSubnets(s)
+	}
+
+	n := PetriNet{
+		pfl.places(),
+		pfl.transitions(),
+	}
+
+	return &n, err
+}
+
+func LoadFile(pflowPath string) (p *PetriNet, err error) {
+	f, err := pFlow.LoadFile(pflowPath)
+	if err != nil {
+		panic("failed to load pflow")
+	}
+	pp := &pflowLoader{f: f}
+	return pp.toNet()
+}

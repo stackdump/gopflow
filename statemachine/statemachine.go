@@ -8,8 +8,16 @@ import (
 )
 
 type StateVector []uint64
-type Transition []int64
 type Action string
+type Role string
+type Delta []int64
+type Condition string
+
+type Transition struct {
+	Delta  Delta
+	Role   Role
+	Guards map[Condition]Delta
+}
 
 type StateMachine struct {
 	Initial     StateVector
@@ -34,11 +42,10 @@ func (s *StateMachine) Clone(state StateVector) StateMachine {
 }
 
 // apply the transformation without overwriting state
-func (s StateMachine) Transform(action string, multiplier uint64) ([]int64, error) {
-	var vectorOut []int64
-	var err error = nil
+func (s *StateMachine) Transform(action string, multiplier uint64) (vectorOut []int64, role Role, err error) {
 
-	for offset, delta := range s.Transitions[Action(action)] {
+	t := s.Transitions[Action(action)]
+	for offset, delta := range t.Delta {
 		val := int64(s.State[offset]) + delta*int64(multiplier)
 		vectorOut = append(vectorOut, val)
 		if err == nil && val < 0 {
@@ -48,16 +55,16 @@ func (s StateMachine) Transform(action string, multiplier uint64) ([]int64, erro
 			err = errors.New("exceeded capacity")
 		}
 	}
-	return vectorOut, err
+	return vectorOut, t.Role, err
 }
 
-func (s StateMachine) ValidActions(multiplier uint64) (map[string][]uint64, bool) {
+func (s *StateMachine) ValidActions(multiplier uint64) (map[string][]uint64, bool) {
 	validActions := map[string][]uint64{}
 
 	ok := false
 	for a := range s.Transitions {
 		action := string(a)
-		outState, err := s.Transform(action, multiplier)
+		outState, _, err := s.Transform(action, multiplier)
 		if nil == err {
 			ok = true
 			var newState []uint64
@@ -73,7 +80,7 @@ func (s StateMachine) ValidActions(multiplier uint64) (map[string][]uint64, bool
 
 // apply the transformation and overwrite state
 func (s *StateMachine) Commit(action string, multiplier uint64) ([]int64, error) {
-	vectorOut, err := s.Transform(action, multiplier)
+	vectorOut, _, err := s.Transform(action, multiplier)
 
 	if err == nil {
 		for offset, val := range vectorOut {
@@ -87,9 +94,9 @@ func (s *StateMachine) Commit(action string, multiplier uint64) ([]int64, error)
 var stateFormat = `
 Initial:   {{ .Initial }}
 Capacity:   {{ .Capacity }}
+State:   {{ .State }}
 Transitions: {{ range $action, $txn := .Transitions }}
 	{{ $action }} {{ printf "%v" $txn }}{{ end }}
-State:   {{ .State }}
 `
 var stateTemplate = template.Must(
 	template.New("").Parse(stateFormat),
@@ -102,15 +109,17 @@ func (s StateMachine) String() string {
 }
 
 var vectorFormat = `
-Vector:   {{ .Initial }}
-`
+        Role:   {{.Role}}
+        Delta:  {{.Delta}}
+        Guards: {{ range $label, $g := .Guards }}
+	            {{ $label }} {{ printf "%v" $g }} {{ end }}`
 
 var vectorTemplate = template.Must(
 	template.New("").Parse(vectorFormat),
 )
 
-func (sv StateVector) String() string {
+func (t Transition) String() string {
 	b := &bytes.Buffer{}
-	_ = vectorTemplate.Execute(b, sv)
+	_ = vectorTemplate.Execute(b, t)
 	return b.String()
 }

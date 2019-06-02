@@ -6,16 +6,17 @@ import (
 )
 
 type Place struct {
-	Id       string `xml:"id"`
+	Id       int    `xml:"id"`
 	X        int    `xml:"x"`
 	Y        int    `xml:"y"`
 	Label    string `xml:"label"`
-	Tokens   int    `xml:"tokens"`
+	Tokens   uint64 `xml:"tokens"`
 	IsStatic bool   `xml:"isStatic"`
+	Capacity uint64 `xml:"capacity"`
 }
 
 type Transition struct {
-	Id    string `xml:"id"`
+	Id    int    `xml:"id"`
 	X     int    `xml:"x"`
 	Y     int    `xml:"y"`
 	Label string `xml:"label"`
@@ -29,10 +30,10 @@ type Arc struct {
 }
 
 type ReferencePlace struct {
-	Id               string `xml:"id"`
-	X                int    `xml:"x"`
-	Y                int    `xml:"y"`
-	ConnectedPlaceId int    `xml:"connectedPlaceId"`
+	Id               int `xml:"id"`
+	X                int `xml:"x"`
+	Y                int `xml:"y"`
+	ConnectedPlaceId int `xml:"connectedPlaceId"`
 }
 
 type ReferenceArc struct {
