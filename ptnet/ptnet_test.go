@@ -7,13 +7,6 @@ import (
 )
 
 func TestLoadFromFile(t *testing.T) {
-	p, err := LoadFile("../examples/octoe.pflow")
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-
-	if p != nil {
-		println(p.String())
-	}
+	p := LoadFile("../examples/octoe.pflow")
+	println(p.String())
 }

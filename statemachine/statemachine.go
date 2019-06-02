@@ -1,9 +1,9 @@
-// Packaget ptnet provides a place-transition equivalent of an elementary petri-net
 package statemachine
 
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"text/template"
 )
 
@@ -23,48 +23,52 @@ type StateMachine struct {
 	Initial     StateVector
 	Capacity    StateVector
 	Transitions map[Action]Transition
-	State       StateVector
 }
 
-func (s *StateMachine) Init() {
-	for _, val := range s.Initial {
-		s.State = append(s.State, val)
+func (s StateMachine) guardTest(state []uint64, tx Transition) error {
+	TESTING: for label, g := range tx.Guards {
+		for offset, delta := range g {
+			val := int64(state[offset]) + delta
+			if val < 0 {
+				continue TESTING
+			}
+		}
+		return errors.New(fmt.Sprintf("guard failure: %v", label))
 	}
+	return nil
 }
 
-func (s *StateMachine) Clone(state StateVector) StateMachine {
-	return StateMachine{
-		Initial:     s.Initial,
-		Capacity:    s.Capacity,
-		Transitions: s.Transitions,
-		State:       state,
-	}
-}
-
-// apply the transformation without overwriting state
-func (s *StateMachine) Transform(action string, multiplier uint64) (vectorOut []int64, role Role, err error) {
+func (s *StateMachine) Transform(state []uint64, action string, multiplier uint64) (vectorOut []int64, role Role, err error) {
 
 	t := s.Transitions[Action(action)]
+
 	for offset, delta := range t.Delta {
-		val := int64(s.State[offset]) + delta*int64(multiplier)
+		val := int64(state[offset]) + delta*int64(multiplier)
 		vectorOut = append(vectorOut, val)
+
 		if err == nil && val < 0 {
-			err = errors.New("invalid output")
+			err = errors.New(fmt.Sprintf("underflow offset: %v => %v ", offset, val))
 		}
+
 		if err == nil && s.Capacity[offset] != 0 && val > int64(s.Capacity[offset]) {
-			err = errors.New("exceeded capacity")
+			err = errors.New(fmt.Sprintf("overflow offset: %v => %v ", offset, val))
 		}
 	}
+
+	if err == nil {
+		err = s.guardTest(state, t)
+	}
+
 	return vectorOut, t.Role, err
 }
 
-func (s *StateMachine) ValidActions(multiplier uint64) (map[string][]uint64, bool) {
+func (s *StateMachine) ValidActions(state []uint64, roles []Role, multiplier uint64) (map[string][]uint64, bool) {
 	validActions := map[string][]uint64{}
 
 	ok := false
 	for a := range s.Transitions {
 		action := string(a)
-		outState, _, err := s.Transform(action, multiplier)
+		outState, _, err := s.Transform(state, action, multiplier)
 		if nil == err {
 			ok = true
 			var newState []uint64
@@ -78,23 +82,9 @@ func (s *StateMachine) ValidActions(multiplier uint64) (map[string][]uint64, boo
 	return validActions, ok
 }
 
-// apply the transformation and overwrite state
-func (s *StateMachine) Commit(action string, multiplier uint64) ([]int64, error) {
-	vectorOut, _, err := s.Transform(action, multiplier)
-
-	if err == nil {
-		for offset, val := range vectorOut {
-			s.State[offset] = uint64(val)
-		}
-	}
-
-	return vectorOut, err
-}
-
 var stateFormat = `
 Initial:   {{ .Initial }}
 Capacity:   {{ .Capacity }}
-State:   {{ .State }}
 Transitions: {{ range $action, $txn := .Transitions }}
 	{{ $action }} {{ printf "%v" $txn }}{{ end }}
 `
